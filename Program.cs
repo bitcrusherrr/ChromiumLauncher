@@ -166,6 +166,7 @@ namespace ChromiumLauncher
                         LaunchChrome();
                         break;
                     case "forceupdate":
+                        CheckConfig();
                         if (!CheckForRunningChrome())
                         {
                             NewBuildAvaliable();//Still have to call it to refresh build number
@@ -176,9 +177,25 @@ namespace ChromiumLauncher
                         }
                         break;
                     case "nocheck":
+                        CheckConfig();
                         LaunchChrome();
                         break;
                     case "background":
+                        break;
+                    default :
+                        CheckConfig();
+
+                        if (NewBuildAvaliable())
+                        {
+                            DownloadNewChrome();
+                            if (!CheckForRunningChrome())
+                            {
+                                ExtractChrome();
+                                Cleanup();
+                            }
+                        }
+
+                        LaunchChrome();
                         break;
                 }
             }
