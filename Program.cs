@@ -26,7 +26,8 @@ namespace ChromiumLauncher
         private static void Cleanup()
         {
             Console.WriteLine("Removing old Chromium");
-            if (!string.IsNullOrEmpty(LauncherConfig.Default.LastVersion))
+            if (!string.IsNullOrEmpty(LauncherConfig.Default.LastVersion) && Directory.Exists(Path.Combine(_chromePath, LauncherConfig.Default.LastVersion)) &&
+                 LauncherConfig.Default.LastVersion.CompareTo(_lastBuild) != 0)
                 Directory.Delete(Path.Combine(_chromePath, LauncherConfig.Default.LastVersion), true);
 
             LauncherConfig.Default.LastVersion = _lastBuild;
@@ -36,6 +37,13 @@ namespace ChromiumLauncher
         private static void ExtractChrome()
         {
             Console.WriteLine("Unpacking Chromium");
+
+            //Check if folder already exists
+            if(Directory.Exists(Path.Combine(_chromePath, _lastBuild)))
+            {
+                Directory.Delete(Path.Combine(_chromePath, _lastBuild), true);
+            }
+
             ZipFile.ExtractToDirectory(Path.Combine(_chromePath, "chrome-win32.zip"), Path.Combine(_chromePath, _lastBuild));
         }
 
@@ -86,6 +94,13 @@ namespace ChromiumLauncher
             else
                 Console.WriteLine("No new version found");
 
+            //Also check if Chromium folder is still there, just in case it was deleted by user and there is nothing to launch
+            if (!result && !Directory.Exists(Path.Combine(_chromePath, LauncherConfig.Default.LastVersion, "chrome-win32")))
+            {
+                Console.WriteLine("Missing Chromium folder");
+                result = true;
+            }
+
             return result;
         }
 
@@ -95,7 +110,10 @@ namespace ChromiumLauncher
             ProcessStartInfo chromeProc = new ProcessStartInfo();
             chromeProc.FileName = Path.Combine(_chromePath, LauncherConfig.Default.LastVersion, @"chrome-win32\chrome.exe");
 
-            Process.Start(chromeProc);
+            if (File.Exists(chromeProc.FileName))
+                Process.Start(chromeProc);
+            else
+                Console.WriteLine("Chromium executable was not found");
         }
 
         private static void ProcessArgs(string[] args)
@@ -118,8 +136,11 @@ namespace ChromiumLauncher
                 if (NewBuildAvaliable())
                 {
                     DownloadNewChrome();
-                    ExtractChrome();
-                    Cleanup();
+                    if (!CheckForRunningChrome())
+                    {
+                        ExtractChrome();
+                        Cleanup();
+                    }
                 }
 
                 LaunchChrome();
@@ -135,18 +156,24 @@ namespace ChromiumLauncher
                         if (NewBuildAvaliable())
                         {
                             DownloadNewChrome();
-                            ExtractChrome();
-                            Cleanup();
+                            if (!CheckForRunningChrome())
+                            {
+                                ExtractChrome();
+                                Cleanup();
+                            }
                         }
 
                         LaunchChrome();
                         break;
                     case "forceupdate":
-                        NewBuildAvaliable();//Still have to call it to refresh build number
-                        DownloadNewChrome();
-                        ExtractChrome();
-                        Cleanup();
-                        LaunchChrome();
+                        if (!CheckForRunningChrome())
+                        {
+                            NewBuildAvaliable();//Still have to call it to refresh build number
+                            DownloadNewChrome();
+                            ExtractChrome();
+                            Cleanup();
+                            LaunchChrome();
+                        }
                         break;
                     case "nocheck":
                         LaunchChrome();
@@ -155,6 +182,27 @@ namespace ChromiumLauncher
                         break;
                 }
             }
+        }
+
+        private static bool CheckForRunningChrome()
+        {
+            bool result = false;
+
+            Process[] chromeProcs = Process.GetProcessesByName("chrome");
+
+            if (chromeProcs.Count() > 0)
+            {
+                MessageBox.Show("Chromium is currently running. \nPlease close it if you wish to carry on with the update before closing this message.\nOtherwise update will be aborted");
+
+                chromeProcs = Process.GetProcessesByName("chrome");
+                if (chromeProcs.Count() > 0)
+                {
+                    Console.WriteLine("Chromium was not closed. Aborting");
+                    result = true;
+                }
+            }
+
+            return result;
         }
     }
 }
